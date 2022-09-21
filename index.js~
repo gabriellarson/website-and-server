@@ -1,0 +1,273 @@
+// YOU CAN USE THIS FILE AS REFERENCE FOR SERVER DEVELOPMENT
+
+// Include the express module
+const express = require('express');
+
+// Helps in managing user sessions
+const session = require('express-session');
+
+// include the mysql module
+var mysql = require('mysql');
+
+// Bcrypt library for comparing password hashes
+const bcrypt = require('bcrypt');
+
+// helps in extracting the body portion of an incoming request stream
+var bodyparser = require('body-parser');
+
+var xml2js = require("xml2js");
+
+var fs = require("fs");
+
+const url = require('url');
+
+const port = 9001;
+
+// create an express application
+const app = express();
+
+// apply the body-parser middleware to all incoming requests
+app.use(bodyparser());
+
+// Use express-session
+// In-memory session is sufficient for this assignment
+app.use(session({
+        secret: "csci4131secretkey",
+        saveUninitialized: true,
+        resave: false
+    }
+));
+
+// middle ware to serve static files
+app.use('/client', express.static(__dirname + '/client'));
+
+// server listens on port set to value above for incoming connections
+app.listen(port, () => console.log('Listening on port', port));
+
+fs.readFile(__dirname+ "/dbconfig.xml",function(err, info){
+	xml2js.Parser().parseString(info, function(err, res){
+		console.log("HERE HERE HERE");
+		console.log(res.dbconfig.host[0]);
+		dbCon = mysql.createConnection({
+			host: res.dbconfig.host[0],
+			user: res.dbconfig.user[0],
+			password: res.dbconfig.password[0],		
+			database: res.dbconfig.database[0],
+			port: res.dbconfig.port[0],
+		});
+		dbCon.connect(function(err){
+			if(err){
+				throw err;			
+			}
+			console.log("connected");
+		});
+	});
+});
+
+app.get('/',function(req, res) {
+  res.sendFile(__dirname + '/client/welcome.html');
+});
+
+
+// GET method route for the contacts page.
+// It serves MyContacts.html present in client folder
+app.get('/MyContacts', function(req, res) {
+	if(!req.session.value){
+		res.redirect("/login");	
+	}
+    res.sendFile(__dirname + '/client/MyContacts.html');
+});
+
+app.get('/Admin', function(req, res) {
+	if(!req.session.value){
+		res.redirect("/login");	
+	}
+    res.sendFile(__dirname + '/client/Admin.html');
+});
+
+app.get('/login', function(req, res) {
+    res.sendFile(__dirname + '/client/login.html');
+});
+
+app.get('/AllContacts', function(req, res) {
+	if(!req.session.value){
+		res.redirect("/login");	
+	}
+    res.sendFile(__dirname + '/client/AllContacts.html');
+});
+
+app.get('/AddContact', function(req, res) {
+	if(!req.session.value){
+		res.redirect("/login");	
+	}
+    res.sendFile(__dirname + '/client/AddContact.html');
+});
+
+app.get('/Stocks', function(req, res) {
+	if(!req.session.value){
+		res.redirect("/login");	
+	}
+    res.sendFile(__dirname + '/client/Stocks.html');
+});
+
+app.get('/logout', function(req, res) {
+	if(!req.session.value){
+		res.redirect("/login");	
+	}
+	req.session.destroy();
+    res.sendFile(__dirname + '/client/login.html');
+});
+
+app.post('/postLogin', function(req, res) {
+   //const dbCon = mysql.createConnection({
+    	//host: "cse-mysql-classes-01.cse.umn.edu",
+    	//user: "C4131SN22U36",
+    	//password: "1346",
+    	//database: "C4131SN22U36",
+    	//port: 3306
+	//});
+	
+	
+	dbCon.query("SELECT * FROM tbl_accounts WHERE acc_login = ?", req.body.user, function(err, rows, fields){
+		if(err){
+			throw err;		
+		}
+
+		if(rows.length != 0 && bcrypt.compareSync(req.body.pass, rows[0].acc_password)){ 
+			req.session.value = 1;
+			req.session.username = req.body.user;
+			res.redirect('/AllContacts');	
+		}else{
+			res.sendStatus(401);		
+		}
+	});
+});
+
+app.get('/getContacts', function(req, res) {
+	
+	
+	dbCon.query("SELECT * FROM contact_table ORDER BY contact_category, contact_name", function(err,rows,fields){
+		if(err){
+			throw err;		
+		}
+		res.send(rows);
+	});
+});
+
+app.get('/getUsers', function(req, res) {
+	console.log("getting users");
+	
+	dbCon.query("SELECT * FROM tbl_accounts", function(err,rows,fields){
+		if(err){
+			throw err;		
+		}
+		res.send(rows);
+	});
+});
+
+app.post('/postContactEntry', function(req, res) {
+	
+	var info = {
+		contact_category: req.body.category,
+		contact_name: req.body.name,
+		contact_location: req.body.location,
+		contact_info: req.body.info,
+		contact_email: req.body.email,
+		website_title: req.body.website_title,
+		website_url: req.body.url
+	};
+	
+	dbCon.query("INSERT contact_table SET ?", info, function(err,rows,fields){
+		if(err){
+			throw err;		
+		}
+		console.log("yo");
+	});
+	
+	res.redirect("/AllContacts")
+});
+
+
+
+app.post('/postNewUser', function(req, res) {
+	console.log("post new")
+
+	
+	dbCon.query("SELECT acc_password FROM tbl_accounts WHERE acc_login=?", req.body.login, function(err,rows,fields){
+		if(err){
+			throw err;		
+		}
+		if(rows.length>0){
+			console.log("500");
+			res.status(500).send("500");		
+		}else{ 
+			if(req.body.name.length != 0 && req.body.login.length != 0 && req.body.psw.length != 0){
+				var count;
+				dbCon.query("SELECT COUNT(*) FROM tbl_accounts", function(result){count = result;});
+				var row = {acc_login: req.body.login, acc_name: req.body.name, acc_password: bcrypt.hashSync(req.body.psw, 10), acc_id: count};
+				dbCon.query("INSERT tbl_accounts SET ?", row, function(err, result){
+					if(err){
+						throw err;				
+					}
+					console.log("200");
+					res.status(200).send("200");
+				});
+			}else{
+				console.log("401");
+				res.status(401).send("401");
+			}	
+		}
+	});
+});
+
+app.post('/editUser', function(req, res) {
+	console.log(req.body)
+	
+	
+	dbCon.query("SELECT * FROM tbl_accounts WHERE acc_login=? AND NOT acc_id=?", [req.body.newLogin, req.body.id], function(err,rows,fields){
+		if(err){
+			throw err;		
+		}
+		if(rows.length>=1){
+			res.status(401).send("login is already in use");		
+		}else{
+			if(req.body.newPass === ''){
+				var insert = {acc_login: req.body.newLogin, acc_name: req.body.newName};
+			}else{
+				var insert = {acc_login: req.body.newLogin, acc_name: req.body.newName};
+			}
+			dbCon.query("UPDATE tbl_accounts SET ? WHERE acc_id=?", [insert, req.body.id], function(err, result){
+				if(err){
+					throw err;				
+				}
+			});
+			res.status(200).send("200");
+		}
+	});
+});
+
+app.delete("/deleteUser",function(req,res){
+	console.log("delete user");
+	
+	console.log(req.session.username);
+	console.log(req.body.login);
+	if(req.session.username != req.body.login){
+		dbCon.query("DELETE FROM tbl_accounts WHERE acc_login= ?", req.body.login, function(err, rows, fields){
+			if(err){
+				throw err;			
+			}
+			console.log("200");
+			res.status(200).send("200");		
+		});
+	}else{
+		console.log("401");
+		res.status(401).send("401")
+	}
+});
+
+// function to return the 404 message and error to client
+app.get('*', function(req, res) {
+  // add details
+  res.sendStatus(404);
+});
+

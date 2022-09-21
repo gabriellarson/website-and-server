@@ -1,0 +1,63 @@
+<html lang="en">
+  <head>
+    	<meta charset="utf-8">
+    	<meta name="viewport" content="width=device-width, initial-scale=1">
+	    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+	    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+	    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+	    <link rel="stylesheet" type="text/css" href="client/css/style.css">
+	    <title>Welcome to Node.js</title>
+	    <style type="text/css">
+              .jumbotron { text-align: center; }
+            </style>
+  </head>
+
+  <body>
+   	<div class="jumbotron" style="background: DarkSeaGreen !important">
+        <h1>Login Page</h1>
+        <p>Enter Username and Password</p>
+        <br/>
+        <br/>
+
+      </div>
+		<div id="error"></div>
+      <div class="row">
+        <div class="col-md-1"></div>
+        <div class="col-md-10">
+          <form action="/postLogin" method="post">
+      		<div class="container">
+        			<label for="user"><b>Username:</b></label>
+        			<input type="text" placeholder="Enter Username" name="user" required>
+					<br/>
+        			<label for="pass"><b>Password:</b></label>
+        			<input type="password" placeholder="Enter Password" name="pass" required>
+					<br/>
+        			<button type="submit" class="btn btn-primary btn-block">Login</button>
+
+      			</div>
+    		</form>
+    		
+    		<script>
+				$("form").submit(function(e){
+					e.preventDefault();
+					$.ajax({
+						url: '/postLogin',
+						type: 'post',
+						data: $('form').serialize(),
+						statusCode:{
+							200: function(){
+								window.location.href = '/AllContacts';							
+							},
+							401: function () {
+								$('#error').html('invalid credentials');
+							}						
+						}
+					});				
+				})    		
+    		</script>
+    		
+        </div>
+        <div class="col-md-1"></div>
+      </div>
+  </body>
+</html>
